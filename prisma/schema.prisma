@@ -1,0 +1,246 @@
+// This is your Prisma schema file for Take Flight backend
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String     @id @default(cuid())
+  aud                String?
+  role               String?
+  email              String     @unique
+  encrypted_password String?
+  name               String?
+  phone              String?
+  token              String?
+  providers          Provider[]
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  customer           Customer?
+}
+
+model Customer {
+  id                   String                 @id @default(cuid())
+  userId               String                 @unique
+  user                 User                   @relation(fields: [userId], references: [id])
+  name                 String
+  email                String
+  country              String
+  city                 String
+  birthdate            DateTime
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  stripeCustomerId     String?
+  bookings             Booking[]
+  profileTravel        ProfileTravel[]
+  purchases            Purchase[]
+  favorites            Favorite[]
+  preferences          Preferences[]
+  searchHistory        SearchHistory[]
+  loyaltyPoints        Int                    @default(0)
+  metadata             Json?
+  AllInclusiveCriteria AllInclusiveCriteria[]
+}
+
+model ProfileTravel {
+  id         String       @id @default(cuid())
+  customer   Customer     @relation(fields: [customerId], references: [id])
+  customerId String
+  firstName  String
+  lastName   String
+  country    String
+  birthdate  DateTime
+  gender     String
+  typeId     String
+  type       TravelIdType @relation(fields: [typeId], references: [id])
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+
+model TravelIdType {
+  id            String          @id @default(cuid())
+  idNumber      String
+  expiration    DateTime
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  ProfileTravel ProfileTravel[]
+}
+
+// provider by supabase, google
+model Provider {
+  id        String   @id @default(cuid())
+  provider  String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Booking {
+  id         String    @id @default(cuid())
+  customer   Customer  @relation(fields: [customerId], references: [id])
+  customerId String
+  paymentId  String?
+  payment    Purchase? @relation(fields: [paymentId], references: [id])
+  flightId   String?
+  hotelId    String?
+  flight     Flight?   @relation(fields: [flightId], references: [id])
+  hotel      Hotel?    @relation(fields: [hotelId], references: [id])
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  metadata   Json?
+}
+
+model Flight {
+  id           String    @id @default(cuid())
+  departure    String
+  arrival      String
+  departureAt  DateTime
+  arrivalAt    DateTime
+  airline      String
+  flightNumber String
+  price        Float
+  currency     String
+  pnr          String?
+  eticket      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  Booking      Booking[]
+}
+
+model Hotel {
+  id                 String    @id @default(cuid())
+  name               String
+  address            String
+  city               String
+  country            String
+  checkIn            DateTime
+  checkOut           DateTime
+  price              Float
+  currency           String
+  confirmationNumber String?
+  metadata           Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  Booking            Booking[]
+}
+
+model Purchase {
+  id            String          @id @default(cuid())
+  customer      Customer        @relation(fields: [customerId], references: [id])
+  customerId    String
+  amount        Float
+  currency      String
+  paymentStatus PurchaseStatus  @default(PENDING)
+  invoice       String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  metadata      Json?
+  Booking       Booking[]
+  PaymentDetail PaymentDetail[]
+}
+
+enum PurchaseStatus {
+  PENDING
+  PAID
+  CANCELED
+}
+
+model PaymentDetail {
+  id         String   @id @default(cuid())
+  purchaseId String
+  purchase   Purchase @relation(fields: [purchaseId], references: [id])
+  brand      String
+  last4      String
+  expMonth   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Activity {
+  id             String       @id @default(cuid())
+  name           String
+  image          String?
+  description    String
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  Favorite       Favorite[]
+  inDestinations String?
+  destination    Destination? @relation(fields: [inDestinations], references: [id])
+}
+
+model Favorite {
+  id         String   @id @default(cuid())
+  customer   Customer @relation(fields: [customerId], references: [id])
+  customerId String
+  activity   Activity @relation(fields: [activityId], references: [id])
+  activityId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Preferences {
+  id         String   @id @default(cuid())
+  customer   Customer @relation(fields: [customerId], references: [id])
+  customerId String
+  smoking    Boolean
+  pets       Boolean
+  bedType    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model SearchHistory {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  query      String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model AllInclusiveCriteria {
+  id               String   @id @default(cuid())
+  customerId       String
+  customer         Customer @relation(fields: [customerId], references: [id])
+  budget           Float
+  budgetFlexible   Boolean
+  numberOfPeople   Int
+  destinationKnown Boolean
+  destinations     String // Store destination IDs or names
+  multiDestination Boolean
+  continent        String? // e.g., Europe, Asia, Africa
+  startDate        DateTime
+  endDate          DateTime
+  type             String // e.g., leisure, cultural, adventure, nature
+  pace             String // e.g., calm, compact
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Destination {
+  id             String     @id @default(cuid())
+  name           String
+  country        String
+  continent      String // e.g., Europe, Asia, Africa
+  description    String?
+  image          String?
+  currency       String
+  language       String
+  timezone       String
+  allInclusiveId String?
+  popular        Boolean    @default(false)
+  activities     Activity[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}
