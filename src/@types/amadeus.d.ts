@@ -110,6 +110,7 @@ declare module 'amadeus' {
       hotelBookings: {
         post: (body: any) => Promise<any>;
       };
+      flightOrder(orderId: string): any;
     };
     schedule: {
       flights: {
@@ -121,6 +122,7 @@ declare module 'amadeus' {
         post: (body: any) => Promise<any>;
       };
     };
+    urls: any;
 
     constructor(options: AmadeusOptions);
   }

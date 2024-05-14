@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@mistralai/mistralai": "^0.2.0",
     "@nestjs/axios": "^3.0.2",
     "@nestjs/common": "^10.0.0",
     "@nestjs/config": "^3.2.2",
@@ -27,6 +28,7 @@
     "@nestjs/jwt": "^10.2.0",
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.0.0",
+    "@nestjs/swagger": "^7.3.1",
     "@prisma/client": "^5.13.0",
     "@supabase/supabase-js": "^2.43.1",
     "amadeus": "^10.0.0",

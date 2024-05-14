@@ -48,7 +48,8 @@ model Customer {
   searchHistory        SearchHistory[]
   loyaltyPoints        Int                    @default(0)
   metadata             Json?
-  AllInclusiveCriteria AllInclusiveCriteria[]
+  allInclusiveCriteria AllInclusiveCriteria[]
+  itineraries          Itinerary[]
 }
 
 model ProfileTravel {
@@ -86,42 +87,61 @@ model Provider {
 }
 
 model Booking {
-  id         String    @id @default(cuid())
-  customer   Customer  @relation(fields: [customerId], references: [id])
-  customerId String
-  paymentId  String?
-  payment    Purchase? @relation(fields: [paymentId], references: [id])
-  flightId   String?
-  hotelId    String?
-  flight     Flight?   @relation(fields: [flightId], references: [id])
-  hotel      Hotel?    @relation(fields: [hotelId], references: [id])
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  metadata   Json?
+  id            String        @id @default(cuid())
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  customerId    String
+  paymentId     String?
+  payment       Purchase?     @relation(fields: [paymentId], references: [id])
+  flightId      String?
+  hotelId       String?
+  flight        Flight?       @relation(fields: [flightId], references: [id])
+  hotel         Hotel?        @relation(fields: [hotelId], references: [id])
+  bookingType   BookingType
+  bookingStatus BookingStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  metadata      Json?
+}
+
+enum BookingType {
+  HOTEL
+  FLIGHT
+  ACTIVITY
+  PACKAGE
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELED
 }
 
 model Flight {
-  id           String    @id @default(cuid())
-  departure    String
-  arrival      String
-  departureAt  DateTime
-  arrivalAt    DateTime
-  airline      String
-  flightNumber String
-  price        Float
-  currency     String
-  pnr          String?
-  eticket      String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  Booking      Booking[]
+  id            String    @id @default(cuid())
+  departure     String
+  departureCode String
+  arrival       String
+  arrivalCode   String
+  departureAt   DateTime
+  arrivalAt     DateTime
+  airline       String
+  flightNumber  String
+  price         Float
+  currency      String
+  pnr           String?
+  eticket       String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  Booking       Booking[]
 }
 
 model Hotel {
   id                 String    @id @default(cuid())
   name               String
+  hotelId            String    @unique // Unique hotel identifier
   address            String
   city               String
+  cityCode           String
   country            String
   checkIn            DateTime
   checkOut           DateTime
@@ -169,6 +189,7 @@ model PaymentDetail {
 model Activity {
   id             String       @id @default(cuid())
   name           String
+  activityId     String       @unique // Unique activity identifier
   image          String?
   description    String
   metadata       Json?
@@ -196,6 +217,8 @@ model Preferences {
   smoking    Boolean
   pets       Boolean
   bedType    String
+  class      String // e.g., Economy, Business, First
+  seatType   String // e.g., Aisle, Window
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
@@ -233,6 +256,7 @@ model Destination {
   name           String
   country        String
   continent      String // e.g., Europe, Asia, Africa
+  cityCode       String
   description    String?
   image          String?
   currency       String
@@ -243,4 +267,28 @@ model Destination {
   activities     Activity[]
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
+}
+
+model Itinerary {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  destination String
+  startDate   DateTime
+  endDate     DateTime
+  activities  String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Offer {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  discount    Float
+  validFrom   DateTime
+  validUntil  DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

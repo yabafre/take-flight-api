@@ -171,6 +171,23 @@ export class AmadeusService {
     });
   }
 
+  // get flight order details
+  async getFlightOrderDetails(orderId: string): Promise<any> {
+    return this.amadeusClient.booking.flightOrder(orderId).get();
+  }
+
+  // delete a flight order
+  async deleteFlightOrder(orderId: string): Promise<any> {
+    return this.amadeusClient.booking.flightOrder(orderId).delete();
+  }
+
+  // get flight check-in links
+  async getFlightCheckinLinks(airlineCode: any): Promise<any> {
+    return this.amadeusClient.urls.checkinLinks.get({
+      airlineCode: airlineCode,
+    });
+  }
+
   // find the cheapest flight dates
   async getCheapestFlightDates(origin: string, destination: string) {
     return this.amadeusClient.shopping.flightDates.get({
