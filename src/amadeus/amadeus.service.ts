@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosRequestConfig, RawAxiosRequestHeaders } from 'axios';
+import { addDays, differenceInDays } from 'date-fns';
 import Amadeus from 'amadeus';
 
 @Injectable()
@@ -76,12 +77,14 @@ export class AmadeusService {
   async getHotelOffers(
     city: string,
     checkInDate: string,
-    adults: number,
+    adults: string,
     roomQuantity: number,
+    checkOutDate: number,
   ): Promise<any> {
     return this.amadeusClient.shopping.hotelOffersSearch.get({
       cityCode: city,
       checkInDate: checkInDate,
+      checkOutDate: checkOutDate,
       adults: adults,
       roomQuantity: roomQuantity,
     });
@@ -128,6 +131,149 @@ export class AmadeusService {
       adults: adults,
     });
   }
+
+  // *** Function for all inclusive serach by AI ***
+
+  async searchFlights(
+    criteria: any,
+    maxPagination: number = 20,
+    params: any = {},
+  ) {
+    const response = await this.amadeusClient.shopping.flightOffersSearch.get({
+      originLocationCode: criteria.originLocationCode,
+      destinationLocationCode: criteria.destinationLocationCode,
+      departureDate: criteria.departureDate,
+      returnDate: criteria.returnDate,
+      adults: criteria.adults,
+      children: criteria.children,
+      max: maxPagination,
+      ...params,
+    });
+    return response.data;
+  }
+
+  async searchHotels(criteria: any) {
+    console.log('criteria:', criteria);
+    const location = criteria.destination;
+    const checkInDate = criteria.startDate;
+    const checkOutDate = criteria.endDate;
+    const adults = criteria.numberOfPeople;
+
+    try {
+      const listHotelByCity =
+        await this.amadeusClient.referenceData.locations.hotels.byCity.get({
+          cityCode: location,
+        });
+
+      const hotelIds = listHotelByCity.data.map(
+        (hotel: { hotelId: any }) => hotel.hotelId,
+      );
+
+      console.log('Total hotels found:', hotelIds.length);
+      if (hotelIds.length === 0) {
+        throw new Error('No hotels found for the given city.');
+      }
+
+      const chunkSize = 20; // Nombre d'IDs par segment
+      const hotelIdsChunks = [];
+      for (let i = 0; i < hotelIds.length; i += chunkSize) {
+        hotelIdsChunks.push(hotelIds.slice(i, i + chunkSize));
+      }
+
+      console.log('Number of chunks:', hotelIdsChunks.length);
+
+      const allResponses = [];
+      const invalidHotelIds = new Set<string>();
+
+      const maxStayDuration = 30;
+      const totalStayDuration = differenceInDays(
+        new Date(checkOutDate),
+        new Date(checkInDate),
+      );
+      const numberOfSegments = Math.ceil(totalStayDuration / maxStayDuration);
+      let currentCheckInDate = new Date(checkInDate);
+
+      for (let i = 0; i < numberOfSegments; i++) {
+        let segmentCheckOutDate = addDays(currentCheckInDate, maxStayDuration);
+        if (segmentCheckOutDate > new Date(checkOutDate)) {
+          segmentCheckOutDate = new Date(checkOutDate);
+        }
+
+        for (const chunk of hotelIdsChunks) {
+          const validChunk = chunk.filter((id) => !invalidHotelIds.has(id));
+          if (validChunk.length === 0) continue;
+
+          try {
+            const response =
+              await this.amadeusClient.shopping.hotelOffersSearch.get({
+                checkInDate: currentCheckInDate.toISOString().split('T')[0],
+                checkOutDate: segmentCheckOutDate.toISOString().split('T')[0],
+                adults: adults,
+                hotelIds: validChunk.join(','), // Joindre les IDs avec des virgules
+                currency: 'EUR',
+              });
+            allResponses.push(...response.data);
+          } catch (error) {
+            console.error(
+              'Error fetching hotel offers for chunk:',
+              validChunk,
+              error,
+            );
+            if (
+              error.response &&
+              error.response.data &&
+              error.response.data.errors
+            ) {
+              error.response.data.errors.forEach((err: any) => {
+                const invalidIds = err.source.parameter
+                  .split('=')[1]
+                  .split(',');
+                invalidIds.forEach((id: string) => invalidHotelIds.add(id));
+              });
+
+              const retryChunk = validChunk.filter(
+                (id) => !invalidHotelIds.has(id),
+              );
+              if (retryChunk.length > 0) {
+                try {
+                  const retryResponse =
+                    await this.amadeusClient.shopping.hotelOffersSearch.get({
+                      checkInDate: currentCheckInDate
+                        .toISOString()
+                        .split('T')[0],
+                      checkOutDate: segmentCheckOutDate
+                        .toISOString()
+                        .split('T')[0],
+                      adults: adults,
+                      hotelIds: retryChunk.join(','),
+                      currency: 'EUR',
+                    });
+                  allResponses.push(...retryResponse.data);
+                } catch (retryError) {
+                  console.error(
+                    'Retry failed for hotel chunk:',
+                    retryChunk,
+                    retryError,
+                  );
+                }
+              }
+            }
+          }
+        }
+
+        currentCheckInDate = segmentCheckOutDate;
+      }
+
+      console.log('Total hotel offers found:', allResponses.length);
+
+      return allResponses;
+    } catch (error) {
+      console.error('Error searching hotels:', error);
+      throw new Error('Failed to search hotels');
+    }
+  }
+
+  // ************************************************
 
   // get flight destinations for inspiration
   async getFlightInspirations(origin: string) {
@@ -201,6 +347,12 @@ export class AmadeusService {
     return this.amadeusClient.referenceData.locations.pointsOfInterest.get({
       latitude: latitude,
       longitude: longitude,
+    });
+  }
+
+  async getLocation(locationCode: string) {
+    return this.amadeusClient.referenceData.locations.get({
+      locationId: locationCode,
     });
   }
 }

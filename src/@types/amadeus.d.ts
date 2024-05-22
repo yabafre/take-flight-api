@@ -44,6 +44,7 @@ declare module 'amadeus' {
       };
     };
     shopping: {
+      hotels: any;
       flightOffersSearch: {
         get: (params: any) => Promise<any>;
         post: (body: any) => Promise<any>;

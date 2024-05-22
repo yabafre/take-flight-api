@@ -10,10 +10,30 @@ import {
   Query,
 } from '@nestjs/common';
 import { AmadeusService } from '@/amadeus/amadeus.service';
+import { AssistantService } from '@/assistant/assistant.service';
 
 @Controller('search')
 export class SearchController {
-  constructor(private readonly amadeusService: AmadeusService) {}
+  constructor(
+    private readonly amadeusService: AmadeusService,
+    private readonly assistantService: AssistantService,
+  ) {}
+
+  @Post('assistant')
+  async askAssistant(@Body() requestBody: any) {
+    try {
+      const response = await this.assistantService.filterResults(requestBody);
+      console.log(response);
+      return response;
+    } catch (error) {
+      const message =
+        error.description || 'An error occurred while asking the assistant';
+      const status =
+        error.response?.statusCode || HttpStatus.INTERNAL_SERVER_ERROR;
+      console.error(error);
+      throw new HttpException(message, status);
+    }
+  }
 
   @Get('locations')
   async getAmadeusAutocompleteLocation(
@@ -85,6 +105,7 @@ export class SearchController {
   async getHotelOffers(
     @Query('city') city: string,
     @Query('checkInDate') checkInDate: string,
+    @Query('checkOutDate') checkOutDate: string,
     @Query('adults') adults: number,
     @Query('roomQuantity') roomQuantity: number,
   ) {
@@ -92,6 +113,7 @@ export class SearchController {
       const response = await this.amadeusService.getHotelOffers(
         city,
         checkInDate,
+        checkOutDate,
         adults,
         roomQuantity,
       );

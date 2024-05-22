@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@googlemaps/google-maps-services-js": "^3.4.0",
     "@mistralai/mistralai": "^0.2.0",
     "@nestjs/axios": "^3.0.2",
     "@nestjs/common": "^10.0.0",
@@ -33,7 +34,11 @@
     "@supabase/supabase-js": "^2.43.1",
     "amadeus": "^10.0.0",
     "axios": "^1.6.8",
+    "core-js": "^3.37.1",
+    "date-fns": "^3.6.0",
     "express": "^4.19.2",
+    "googleapis": "^137.1.0",
+    "openai": "^4.47.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "prisma": "^5.13.0",

@@ -14,7 +14,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthMiddleware } from '@/auth/auth.middleware';
 import { WebhooksModule } from '@/webhooks/webhooks.module';
 import { AmadeusModule } from '@/amadeus/amadeus.module';
-import { MistralModule } from './mistral/mistral.module';
+import { AssistantModule } from './assistant/assistant.module';
 
 @Module({
   imports: [
@@ -27,7 +27,7 @@ import { MistralModule } from './mistral/mistral.module';
     SupabaseModule,
     WebhooksModule,
     AmadeusModule,
-    MistralModule,
+    AssistantModule,
   ],
   controllers: [AppController],
   providers: [AppService],
