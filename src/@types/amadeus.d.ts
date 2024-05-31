@@ -4,6 +4,7 @@ declare module 'amadeus' {
   interface AmadeusOptions {
     clientId: string;
     clientSecret: string;
+    hostname?: string;
   }
 
   export default class Amadeus {
@@ -76,9 +77,6 @@ declare module 'amadeus' {
       seatmaps: {
         post: (body: any) => Promise<any>;
         get: (params: any) => Promise<any>;
-      };
-      HotelOfferSearch: (offerId: string) => {
-        get: () => Promise<any>;
       };
       hotelBookings: {
         post: (params: any) => Promise<any>;

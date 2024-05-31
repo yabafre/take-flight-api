@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { AmadeusService } from '@/amadeus/amadeus.service';
 import { Client } from '@googlemaps/google-maps-services-js';
 import OpenAI from 'openai';
+import CurrencyConverter from 'currency-converter-lt';
+import { MessageContent } from 'openai/resources/beta/threads';
 
 interface Criteria {
   maxPrice: number;
@@ -41,15 +43,6 @@ export class AssistantService {
     );
   }
 
-  async threadConversation() {
-    try {
-      return await this.openai.beta.threads.create();
-    } catch (error) {
-      console.error('Error creating thread:', error);
-      throw new Error('Failed to create thread');
-    }
-  }
-
   async filterResults(criteria: Criteria) {
     try {
       const { flightBudget, hotelBudget } =
@@ -61,16 +54,17 @@ export class AssistantService {
           this.searchHotels(criteria),
         ]);
 
-        const [filteredFlights, filteredHotels] = await Promise.all([
-          this.filterFlightsWithAI(flights, {
-            ...criteria,
-            maxPrice: flightBudget,
-          }),
-          this.filterHotelsWithAI(hotels, {
-            ...criteria,
-            maxPrice: hotelBudget,
-          }),
-        ]);
+        const filteredFlights = await this.filterFlightsWithAI(flights, {
+          ...criteria,
+          maxPrice: flightBudget,
+        });
+
+        await this.delay(2000); // Ajoute un délai de 2 secondes entre les appels pour respecter la limite TPM
+
+        const filteredHotels = await this.filterHotelsWithAI(hotels, {
+          ...criteria,
+          maxPrice: hotelBudget,
+        });
 
         const coordinates = await this.getCoordinatesFromLocationCode(
           criteria.destinationLocationCode,
@@ -79,6 +73,7 @@ export class AssistantService {
           criteria,
           coordinates,
         );
+
         const filteredActivities = await this.filterActivitiesWithAI(
           activities,
           criteria,
@@ -91,50 +86,58 @@ export class AssistantService {
         };
       } else {
         const suggestedDestinations = await this.suggestDestinations(criteria);
-        return await Promise.all(
-          suggestedDestinations.map(
-            async (destination: { code: string; name: any }) => {
-              const updatedCriteria = {
-                ...criteria,
-                destinationLocationCode: destination.code,
-              };
-              const [flights, hotels] = await Promise.all([
-                this.searchFlights(updatedCriteria),
-                this.searchHotels(updatedCriteria),
-              ]);
+        const results = [];
 
-              const [filteredFlights, filteredHotels] = await Promise.all([
-                this.filterFlightsWithAI(flights, {
-                  ...updatedCriteria,
-                  maxPrice: flightBudget,
-                }),
-                this.filterHotelsWithAI(hotels, {
-                  ...updatedCriteria,
-                  maxPrice: hotelBudget,
-                }),
-              ]);
+        for (const destination of suggestedDestinations) {
+          const updatedCriteria = {
+            ...criteria,
+            destinationLocationCode: destination.code,
+          };
 
-              const coordinates = await this.getCoordinatesFromLocationCode(
-                destination.code,
-              );
-              const activities = await this.searchActivitiesWithKeywords(
-                updatedCriteria,
-                coordinates,
-              );
-              const filteredActivities = await this.filterActivitiesWithAI(
-                activities,
-                updatedCriteria,
-              );
+          const flights = await this.searchFlights(updatedCriteria);
+          await this.delay(2000); // Ajoute un délai de 2 secondes entre les appels pour respecter la limite TPM
 
-              return {
-                destination: destination.name,
-                flights: filteredFlights,
-                hotels: filteredHotels,
-                activities: filteredActivities,
-              };
-            },
-          ),
-        );
+          const filteredFlights = await this.filterFlightsWithAI(flights, {
+            ...updatedCriteria,
+            maxPrice: flightBudget,
+          });
+
+          await this.delay(2000); // Ajoute un délai de 2 secondes entre les appels pour respecter la limite TPM
+
+          const hotels = await this.searchHotels(updatedCriteria);
+          await this.delay(2000); // Ajoute un délai de 2 secondes entre les appels pour respecter la limite TPM
+
+          const filteredHotels = await this.filterHotelsWithAI(hotels, {
+            ...updatedCriteria,
+            maxPrice: hotelBudget,
+          });
+
+          const coordinates = await this.getCoordinatesFromLocationCode(
+            destination.code,
+          );
+          const activities = await this.searchActivitiesWithKeywords(
+            updatedCriteria,
+            coordinates,
+          );
+
+          await this.delay(2000); // Ajoute un délai de 2 secondes entre les appels pour respecter la limite TPM
+
+          const filteredActivities = await this.filterActivitiesWithAI(
+            activities,
+            updatedCriteria,
+          );
+
+          results.push({
+            destination: destination.name,
+            flights: filteredFlights,
+            hotels: filteredHotels,
+            activities: filteredActivities,
+          });
+
+          await this.delay(2000); // Ajoute un délai de 2 secondes entre chaque itération pour respecter la limite TPM
+        }
+
+        return results;
       }
     } catch (error) {
       console.error('Error filtering results:', error);
@@ -218,48 +221,120 @@ export class AssistantService {
   }
 
   async filterFlightsWithAI(flights: any[], criteria: any) {
-    const prompt = `Filtre les vols suivants en fonction des critères: ${JSON.stringify(criteria)}. Vols: ${JSON.stringify(flights)}`;
-    const assistant = await this.openai.beta.assistants.create({
-      name: 'flight-filtering',
-      instructions:
-        'You are a flight booking assistant. Please filter the flights based on the given criteria.',
-      model: 'gpt-4o',
-    });
+    const chunkSize = 40; // Taille de chaque chunk
+    let filteredFlights = [];
 
-    const threadId = await this.threadConversation();
-    await this.openai.beta.threads.messages.create(threadId.id, {
-      role: 'user',
-      content: prompt,
-    });
+    for (let i = 0; i < flights.length; i += chunkSize) {
+      const chunk = flights.slice(i, i + chunkSize);
 
-    const run = await this.openai.beta.threads.runs.createAndPoll(threadId.id, {
-      assistant_id: assistant.id,
-      instructions: 'Filter the flights based on the given criteria.',
-    });
+      const prompt = `Filtre ces vols pour un budget total de ${criteria.maxPrice} EUR, le budget peut-être flexible : ${criteria.flexibleMaxPrice}. Critères: dates (${criteria.startDate} - ${criteria.endDate}), budget alloué aux vols. Vols: ${JSON.stringify(chunk)}`;
 
-    if (run.status === 'completed') {
-      const response = await this.openai.beta.threads.messages.list(
-        run.thread_id,
+      const assistant = await this.openai.beta.assistants.create({
+        name: 'flight-filtering',
+        instructions:
+          'Tu es un assistant de réservation de vols. Filtre les vols selon les critères donnés, en choisissant les trois meilleures options en termes de prix et de durée.',
+        model: 'gpt-4o',
+      });
+
+      const threadId = await this.threadConversation();
+      await this.openai.beta.threads.messages.create(threadId.id, {
+        role: 'user',
+        content: prompt,
+      });
+
+      const run = await this.openai.beta.threads.runs.createAndPoll(
+        threadId.id,
+        {
+          assistant_id: assistant.id,
+          instructions:
+            'Filtre les vols selon les critères donnés et renvoie les trois meilleures options.',
+        },
       );
-      const messageContent = response.data[0].content;
 
-      try {
-        return JSON.parse(JSON.stringify(messageContent));
-      } catch (error) {
-        console.error('Error parsing JSON:', error);
-        throw new Error('Failed to parse JSON response from AI assistant');
+      if (run.status === 'completed') {
+        const response = await this.openai.beta.threads.messages.list(
+          run.thread_id,
+        );
+        const messageContent = response.data[0].content;
+
+        try {
+          filteredFlights = JSON.parse(JSON.stringify(messageContent)).slice(
+            0,
+            3,
+          ); // Prendre seulement les trois meilleurs
+        } catch (error) {
+          console.error('Error parsing JSON:', error);
+          throw new Error('Failed to parse JSON response from AI assistant');
+        }
+      } else {
+        return run.status;
       }
-    } else {
-      return run.status;
+
+      await this.delay(3000); // Ajoute un délai de 3 secondes entre chaque requête pour éviter de dépasser la limite TPM
     }
+
+    return filteredFlights;
   }
 
   async filterHotelsWithAI(hotels: any[], criteria: any) {
-    const prompt = `Filtre les hôtels suivants en fonction des critères: ${JSON.stringify(criteria)}. Hôtels: ${JSON.stringify(hotels)}`;
+    const hotelIds: string[] = [];
+    const totalNights =
+      (new Date(criteria.endDate).getTime() -
+        new Date(criteria.startDate).getTime()) /
+      (1000 * 60 * 60 * 24);
+
+    // Convertir les prix des offres d'hôtels en EUR
+    const hotelsWithConvertedPrices = await Promise.all(
+      hotels.map(async (hotel) => {
+        const validOffers = hotel.offers.filter(
+          (offer: { price: { total: string; currency: string } }) =>
+            offer.price.total && offer.price.currency,
+        );
+
+        const convertedOffers = await Promise.all(
+          validOffers.map(
+            async (offer: { price: { total: string; currency: string } }) => {
+              const totalPrice = parseFloat(offer.price.total);
+              const convertedPrice = new CurrencyConverter({
+                from: offer.price.currency,
+                to: 'EUR',
+                amount: totalPrice,
+              });
+              convertedPrice.convert();
+              return { ...offer, convertedPrice };
+            },
+          ),
+        );
+        return { ...hotel, offers: convertedOffers };
+      }),
+    );
+
+    // Trier les hôtels par prix total en EUR
+    const sortedHotels = hotelsWithConvertedPrices.sort((a, b) => {
+      const minPriceA = Math.min(
+        ...a.offers.map(
+          (offer: { convertedPrice: number }) => offer.convertedPrice,
+        ),
+      );
+      const minPriceB = Math.min(
+        ...b.offers.map(
+          (offer: { convertedPrice: number }) => offer.convertedPrice,
+        ),
+      );
+      return minPriceA - minPriceB;
+    });
+
+    const cheapestHotels = sortedHotels.slice(0, 8);
+
+    console.log('Cheapest hotels:', cheapestHotels.length);
+
+    const prompt = `Filtre ces hôtels pour un séjour de ${totalNights} nuits avec un budget total de ${criteria.maxPrice} EUR. Hôtels: ${JSON.stringify(cheapestHotels)}.
+      Renvoie uniquement les IDs des 3 hôtels sélectionnés les moins chères qui ce rapproche des critères, sous forme de liste JSON, comme ceci: {"hotelIds": ["AMTYOATK", "AKTYOAMA", "AZTYO510"]}`;
+
     const assistant = await this.openai.beta.assistants.create({
       name: 'hotel-filtering',
       instructions:
-        'You are a hotel booking assistant. Please filter the hotels based on the given criteria.',
+        "Tu es un assistant de réservation d'hôtels. Filtre les hôtels selon les critères donnés et renvoie uniquement les IDs des hôtels sélectionnés sous forme de liste JSON, comme ceci: {'hotelIds': ['ID1', 'ID2', 'ID3']}.",
       model: 'gpt-4o',
     });
 
@@ -271,63 +346,148 @@ export class AssistantService {
 
     const run = await this.openai.beta.threads.runs.createAndPoll(threadId.id, {
       assistant_id: assistant.id,
-      instructions: 'Filter the hotels based on the given criteria.',
+      instructions:
+        'Filtre les hôtels selon les critères donnés et renvoie les IDs des hôtels sélectionnés sous forme de liste JSON.',
     });
 
     if (run.status === 'completed') {
       const response = await this.openai.beta.threads.messages.list(
         run.thread_id,
       );
-      const messageContent = response.data[0].content;
+      const messageContent: MessageContent = response.data[0].content[0];
+
+      console.log('Message content hotels:', messageContent);
 
       try {
-        return JSON.parse(JSON.stringify(messageContent));
+        // Vérifie que le contenu est bien du texte
+        if (messageContent.type === 'text') {
+          // Extraire le contenu JSON du bloc de texte
+          const regex = /```json\s*([\s\S]*?)\s*```/;
+
+          const jsonMatch = messageContent.text.value.match(regex);
+
+          if (!jsonMatch) {
+            throw new Error('No JSON block found in message content');
+          }
+
+          const hotelIdResponse = JSON.parse(jsonMatch[1]);
+          if (hotelIdResponse && Array.isArray(hotelIdResponse.hotelIds)) {
+            hotelIds.push(...hotelIdResponse.hotelIds);
+          } else {
+            console.error('Invalid format for hotel IDs:', hotelIdResponse);
+            throw new Error('Invalid format for hotel IDs');
+          }
+        } else {
+          throw new Error('Message content is not a text block');
+        }
       } catch (error) {
         console.error('Error parsing JSON:', error);
         throw new Error('Failed to parse JSON response from AI assistant');
       }
     } else {
+      console.error('Run status not completed:', run.status);
       return run.status;
+    }
+
+    await this.delay(10000); // Ajoute un délai de 10 secondes entre chaque requête pour éviter de dépasser la limite TPM
+
+    // Filtrage final avec les IDs collectés
+    const finalHotels = hotels.filter((hotel) =>
+      hotelIds.includes(hotel.hotel.hotelId),
+    );
+
+    const finalPrompt = `Parmi ces hôtels sélectionnés, choisis les trois meilleurs pour un séjour de ${totalNights} nuits avec un budget total de ${criteria.maxPrice} EUR. Hôtels: ${JSON.stringify(finalHotels)}.
+    Renvoie les détails complets des trois meilleurs hôtels sélectionnés.`;
+
+    const finalAssistant = await this.openai.beta.assistants.create({
+      name: 'final-hotel-filtering',
+      instructions:
+        "Tu es un assistant de réservation d'hôtels. Choisis les trois meilleurs hôtels parmi ceux sélectionnés et renvoie les détails complets.",
+      model: 'gpt-4o',
+    });
+
+    const finalThreadId = await this.threadConversation();
+    await this.openai.beta.threads.messages.create(finalThreadId.id, {
+      role: 'user',
+      content: finalPrompt,
+    });
+
+    const finalRun = await this.openai.beta.threads.runs.createAndPoll(
+      finalThreadId.id,
+      {
+        assistant_id: finalAssistant.id,
+        instructions:
+          'Choisis les trois meilleurs hôtels parmi ceux sélectionnés et renvoie les détails complets.',
+      },
+    );
+
+    if (finalRun.status === 'completed') {
+      const finalResponse = await this.openai.beta.threads.messages.list(
+        finalThreadId.id,
+      );
+      const finalMessageContent = finalResponse.data[0].content;
+
+      try {
+        return JSON.parse(JSON.stringify(finalMessageContent));
+      } catch (error) {
+        console.error('Error parsing JSON:', error);
+        throw new Error('Failed to parse JSON response from AI assistant');
+      }
+    } else {
+      console.error('Final run status not completed:', finalRun.status);
+      return finalRun.status;
     }
   }
 
   async filterActivitiesWithAI(activities: any[], criteria: any) {
-    const prompt = `Filtre les activités suivantes en fonction des critères: ${JSON.stringify(criteria)}. Activités: ${JSON.stringify(activities)}`;
-    const assistant = await this.openai.beta.assistants.create({
-      name: 'activity-filtering',
-      instructions:
-        'You are an activity booking assistant. Please filter the activities based on the given criteria.',
-      model: 'gpt-4o',
-    });
+    const chunkedActivities = this.chunkArray(activities, 50); // Par exemple, 50 activités par chunk
+    const filteredActivities = [];
 
-    const threadId = await this.threadConversation();
-    await this.openai.beta.threads.messages.create(threadId.id, {
-      role: 'user',
-      content: prompt,
-    });
+    for (const chunk of chunkedActivities) {
+      const prompt = `Filtre ces activités en fonction des critères: ${JSON.stringify(criteria)}. Activités: ${JSON.stringify(chunk)}`;
 
-    const run = await this.openai.beta.threads.runs.createAndPoll(threadId.id, {
-      assistant_id: assistant.id,
-      instructions: 'Filter the activities based on the given criteria.',
-    });
+      const assistant = await this.openai.beta.assistants.create({
+        name: 'activity-filtering',
+        instructions:
+          "Tu es un assistant de réservation d'activités. Filtre les activités selon les critères donnés.",
+        model: 'gpt-4o',
+      });
 
-    if (run.status === 'completed') {
-      const response = await this.openai.beta.threads.messages.list(
-        run.thread_id,
+      const threadId = await this.threadConversation();
+      await this.openai.beta.threads.messages.create(threadId.id, {
+        role: 'user',
+        content: prompt,
+      });
+
+      const run = await this.openai.beta.threads.runs.createAndPoll(
+        threadId.id,
+        {
+          assistant_id: assistant.id,
+          instructions: 'Filtre les activités selon les critères donnés.',
+        },
       );
-      const messageContent = response.data[0].content;
 
-      console.log('messageContent', JSON.parse(JSON.stringify(messageContent)));
+      if (run.status === 'completed') {
+        const response = await this.openai.beta.threads.messages.list(
+          run.thread_id,
+        );
+        const messageContent = response.data[0].content;
 
-      try {
-        return JSON.parse(JSON.stringify(messageContent));
-      } catch (error) {
-        console.error('Error parsing JSON:', error);
-        throw new Error('Failed to parse JSON response from AI assistant');
+        try {
+          filteredActivities.push(
+            ...JSON.parse(JSON.stringify(messageContent)),
+          );
+        } catch (error) {
+          console.error('Error parsing JSON:', error);
+          throw new Error('Failed to parse JSON response from AI assistant');
+        }
+      } else {
+        return run.status;
       }
-    } else {
-      return run.status;
+      await this.delay(2000); // Ajoute un délai de 2 seconde entre chaque requête
     }
+
+    return filteredActivities;
   }
 
   async searchActivitiesWithKeywords(
@@ -347,6 +507,8 @@ export class AssistantService {
         timeout: 10000,
       });
 
+      console.log('Activities response:', response.data.results);
+
       return response.data.results.map((result) => ({
         id: this.generateUniqueId(),
         name: result.name,
@@ -364,7 +526,7 @@ export class AssistantService {
     }
   }
 
-  async createItinerary(hotelLocation: string, activities, criteria) {
+  async createItinerary(hotelLocation: string, activities: any, criteria: any) {
     try {
       const itinerary = await this.planItineraryWithAI(
         hotelLocation,
@@ -378,7 +540,11 @@ export class AssistantService {
     }
   }
 
-  async planItineraryWithAI(hotelLocation: string, activities, criteria) {
+  async planItineraryWithAI(
+    hotelLocation: string,
+    activities: any,
+    criteria: any,
+  ) {
     const prompt = `Planifie un itinéraire basé sur les critères suivants: ${JSON.stringify(criteria)} et les activités: ${JSON.stringify(activities)}. Point de départ: ${hotelLocation}`;
     const assistant = await this.openai.beta.assistants.create({
       name: 'itinerary-planning',
@@ -477,6 +643,29 @@ export class AssistantService {
       return 'gastronomie';
     if (lowerKeyword.includes('shopping')) return 'shopping';
     return 'culturelle'; // Valeur par défaut
+  }
+
+  async threadConversation() {
+    try {
+      return await this.openai.beta.threads.create();
+    } catch (error) {
+      console.error('Error creating thread:', error);
+      throw new Error('Failed to create thread');
+    }
+  }
+
+  // Fonction pour diviser un tableau en chunks
+  private chunkArray(array: any[], chunkSize: number): any[][] {
+    const results = [];
+    for (let i = 0; i < array.length; i += chunkSize) {
+      results.push(array.slice(i, i + chunkSize));
+    }
+    return results;
+  }
+
+  // Fonction pour ajouter un délai
+  private delay(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private calculateBudgetPerService(criteria: Criteria): {

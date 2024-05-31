@@ -14,6 +14,7 @@ export class AmadeusService {
     this.amadeusClient = new Amadeus({
       clientId: configService.get<string>('NEST_PUBLIC_AMADEUS_API_KEY'),
       clientSecret: configService.get<string>('NEST_PUBLIC_AMADEUS_API_SECRET'),
+      hostname: 'production',
     });
 
     this.skyScrapperClient = axios.create({
@@ -174,7 +175,7 @@ export class AmadeusService {
         throw new Error('No hotels found for the given city.');
       }
 
-      const chunkSize = 20; // Nombre d'IDs par segment
+      const chunkSize = 20; // Réduction de la taille des segments à 10
       const hotelIdsChunks = [];
       for (let i = 0; i < hotelIds.length; i += chunkSize) {
         hotelIdsChunks.push(hotelIds.slice(i, i + chunkSize));
@@ -200,7 +201,9 @@ export class AmadeusService {
         }
 
         for (const chunk of hotelIdsChunks) {
-          const validChunk = chunk.filter((id) => !invalidHotelIds.has(id));
+          const validChunk = chunk.filter(
+            (id: string) => !invalidHotelIds.has(id),
+          );
           if (validChunk.length === 0) continue;
 
           try {
@@ -210,7 +213,6 @@ export class AmadeusService {
                 checkOutDate: segmentCheckOutDate.toISOString().split('T')[0],
                 adults: adults,
                 hotelIds: validChunk.join(','), // Joindre les IDs avec des virgules
-                currency: 'EUR',
               });
             allResponses.push(...response.data);
           } catch (error) {
@@ -232,7 +234,7 @@ export class AmadeusService {
               });
 
               const retryChunk = validChunk.filter(
-                (id) => !invalidHotelIds.has(id),
+                (id: string) => !invalidHotelIds.has(id),
               );
               if (retryChunk.length > 0) {
                 try {
