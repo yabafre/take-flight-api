@@ -1,8 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '@/app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AmadeusService } from '@/amadeus/amadeus.service';
-import { ConfigService } from '@nestjs/config';
+import { patchNestjsSwagger } from '@anatine/zod-nestjs';
+
+const PORT = process.env.PORT || 4000;
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -10,21 +11,18 @@ async function bootstrap() {
     .setTitle('Take Flight Booking API')
     .setDescription('The Flight Booking API description')
     .setVersion('1.0')
-    .addTag('take-flight-booking')
     .build();
+  patchNestjsSwagger();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
-  await app.listen(3000);
+  app.enableCors({
+    origin: '*',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
+  });
+  await app.listen(PORT);
 }
 bootstrap().then(() => {
-  console.log('Server is running on http://localhost:3000');
-  const configService = new ConfigService();
-  const amadeusService = new AmadeusService(configService);
-  // amadeusService
-  //   .getLocations({
-  //     keyword: 'LON',
-  //     subType: 'CITY',
-  //   })
-  //   .then((data) => console.log(JSON.parse(data.body)))
-  //   .catch((error) => console.error(error));
+  console.log(`Server running on http://localhost:${PORT}`);
 });

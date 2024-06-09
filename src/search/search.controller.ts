@@ -8,10 +8,16 @@ import {
   Param,
   Post,
   Query,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { AmadeusService } from '@/amadeus/amadeus.service';
 import { AssistantService } from '@/assistant/assistant.service';
+import { SearchFlightDto } from '@/search/dto/search-flight.dto';
+import { ZodValidationPipe } from '@anatine/zod-nestjs';
+import { ApiCreatedResponse, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Search')
 @Controller('search')
 export class SearchController {
   constructor(
@@ -161,20 +167,17 @@ export class SearchController {
   }
 
   @Get('flight-offers')
-  async getFlightOffers(
-    @Query('origin') origin: string,
-    @Query('destination') destination: string,
-    @Query('departureDate') departureDate: string,
-    @Query('adults') adults: number,
-  ) {
+  @UsePipes(
+    new ValidationPipe({ transform: true, whitelist: true }),
+    new ZodValidationPipe(),
+  )
+  @ApiCreatedResponse({
+    description: 'The flight offers have been successfully fetched.',
+  })
+  async getFlightOffers(@Query() query: SearchFlightDto) {
     try {
-      const response = await this.amadeusService.getFlightOffers(
-        origin,
-        destination,
-        departureDate,
-        adults,
-      );
-      return response.data;
+      const response = await this.amadeusService.getFlightOffers(query);
+      return response.result;
     } catch (error) {
       const message =
         error.description || 'An error occurred while fetching flight offers';

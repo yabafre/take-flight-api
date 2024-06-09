@@ -119,18 +119,8 @@ export class AmadeusService {
   }
 
   // search for flight offers
-  async getFlightOffers(
-    origin: string,
-    destination: string,
-    departureDate: string,
-    adults: number,
-  ) {
-    return this.amadeusClient.shopping.flightOffersSearch.get({
-      originLocationCode: origin,
-      destinationLocationCode: destination,
-      departureDate: departureDate,
-      adults: adults,
-    });
+  async getFlightOffers(data: any) {
+    return this.amadeusClient.shopping.flightOffersSearch.get(data);
   }
 
   // *** Function for all inclusive serach by AI ***

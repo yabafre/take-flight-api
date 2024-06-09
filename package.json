@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@anatine/zod-nestjs": "^2.0.8",
     "@googlemaps/google-maps-services-js": "^3.4.0",
     "@mistralai/mistralai": "^0.2.0",
     "@nestjs/axios": "^3.0.2",
@@ -34,6 +35,8 @@
     "@supabase/supabase-js": "^2.43.1",
     "amadeus": "^10.0.0",
     "axios": "^1.6.8",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
     "core-js": "^3.37.1",
     "currency-converter-lt": "^2.0.1",
     "date-fns": "^3.6.0",
