@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createZodDto } from '@anatine/zod-nestjs';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export const flightOffersDTO = z
@@ -13,6 +13,7 @@ export const flightOffersDTO = z
     children: z.number().optional(),
     maxPrice: z.number().optional(),
     max: z.number().optional(),
+    currencyCode: z.string().optional().default('EUR'),
   })
   .strict();
 
@@ -49,4 +50,9 @@ export class SearchFlightDto extends createZodDto(flightOffersDTO) {
   @IsOptional()
   @IsInt()
   max?: number;
+
+  @Transform(({ value }) => value ?? 'EUR')
+  @IsOptional()
+  @IsString()
+  currencyCode: string;
 }
