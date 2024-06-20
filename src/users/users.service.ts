@@ -9,9 +9,16 @@ import { CreateUserType } from '@/users/dto/create-user.type';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  async getUserById(id: string): Promise<CreateUserType> {
+  async getUserById(id: string) {
     return this.prisma.user.findUnique({
       where: { id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        customer: true,
+      },
     });
   }
 
@@ -19,6 +26,7 @@ export class UsersService {
     const parsedData = CreateUserDto.parse({
       ...userData,
       providers: userData.raw_app_meta_data ?? {}, // Extract providers from raw_app_meta_data
+      name: userData.raw_user_meta_data?.name ?? userData.name, // Extract name from raw_app_meta_data
     });
 
     return this.prisma.user.create({
@@ -49,6 +57,7 @@ export class UsersService {
     const parsedData = CreateUserDto.parse({
       ...userData,
       providers: userData.raw_app_meta_data ?? {}, // Extract providers from raw_app_meta_data
+      name: userData.raw_user_meta_data?.name ?? userData.name, // Extract name from raw_app_meta_data
     });
 
     return this.prisma.user.update({
@@ -71,6 +80,16 @@ export class UsersService {
   }
 
   async deleteUser(id: string): Promise<CreateUserType> {
+    // First, check if the user exists
+    const existingUser = await this.prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!existingUser) {
+      throw new Error(`User with ID ${id} not found`);
+    }
+
+    // Delete the user and provided ID
     return this.prisma.user.delete({
       where: { id },
     });
