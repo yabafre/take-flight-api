@@ -41,15 +41,10 @@ export class AmadeusService {
   }
 
   // Suggest locations based on a search term with Amadeus
-  async amadeusAutocompleteLocation(body: any): Promise<any> {
+  async amadeusAutocompleteLocation(keyword: string): Promise<any> {
     return this.amadeusClient.referenceData.locations.get({
-      keyword: body.keyword,
-      subType:
-        body.subType === 'CITY'
-          ? Amadeus.location.city
-          : body.subType === 'AIRPORT'
-            ? Amadeus.location.airport
-            : Amadeus.location.any,
+      keyword: keyword,
+      subType: Amadeus.location.any,
     });
   }
 
@@ -121,6 +116,15 @@ export class AmadeusService {
   // search for flight offers
   async getFlightOffers(data: any) {
     return this.amadeusClient.shopping.flightOffersSearch.get(data);
+  }
+
+  async getFlightOffersPricing(flightOffers: any) {
+    return this.amadeusClient.shopping.flightOffers.pricing.post({
+      data: {
+        type: 'flight-offers-pricing',
+        flightOffers: flightOffers,
+      },
+    });
   }
 
   // *** Function for all inclusive serach by AI ***

@@ -13,16 +13,12 @@ export class AuthService {
   async validateUser(token: string): Promise<any> {
     try {
       const decoded = this.jwtService.verify(token, {
-        secret: process.env.SUPABASE_JWT_SECRET,
+        secret: process.env.NEST_PUBLIC_SUPABASE_JWT_SECRET,
       });
       console.log('decoded:', decoded);
       return await this.usersService.getUserById(decoded.sub);
     } catch (err) {
       return null;
     }
-  }
-
-  login() {
-    return Promise.resolve(undefined);
   }
 }

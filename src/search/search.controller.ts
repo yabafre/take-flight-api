@@ -1,11 +1,9 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   HttpException,
   HttpStatus,
-  Param,
   Post,
   Query,
   UsePipes,
@@ -42,14 +40,10 @@ export class SearchController {
   }
 
   @Get('locations')
-  async getAmadeusAutocompleteLocation(
-    @Query('keyword') keyword: string,
-    @Query('subType') subType: string,
-  ) {
+  async getAmadeusAutocompleteLocation(@Query('keyword') keyword: string) {
     try {
-      const data = { keyword, subType };
       const response =
-        await this.amadeusService.amadeusAutocompleteLocation(data);
+        await this.amadeusService.amadeusAutocompleteLocation(keyword);
       return response.data;
     } catch (error) {
       const message =
@@ -188,6 +182,23 @@ export class SearchController {
     }
   }
 
+  @Post('flight-offers/pricing')
+  async getFlightOffersPrices(@Body() requestBody: any) {
+    try {
+      const response =
+        await this.amadeusService.getFlightOffersPricing(requestBody);
+      return response.data;
+    } catch (error) {
+      const message =
+        error.description ||
+        'An error occurred while fetching flight offers pricing';
+      const status =
+        error.response?.statusCode || HttpStatus.INTERNAL_SERVER_ERROR;
+      console.error(error);
+      throw new HttpException(message, status);
+    }
+  }
+
   @Post('complex-flight-offers')
   async searchComplexFlightOffers(@Body() requestBody: any) {
     try {
@@ -262,66 +273,6 @@ export class SearchController {
         error.response?.statusCode || HttpStatus.INTERNAL_SERVER_ERROR;
       console.error(error);
       throw new HttpException(message, status);
-    }
-  }
-
-  @Get('activities/autocomplete-location')
-  async autocompleteActivityLocation(@Query('query') query: string) {
-    try {
-      // Implémentation spécifique pour les activités
-    } catch (error) {
-      console.error(error);
-      throw new HttpException(
-        'An error occurred while fetching autocomplete activity locations',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
-  @Get('activities/by-city')
-  async getActivitiesByCity(@Query('cityCode') cityCode: string) {
-    try {
-      // Implémentation spécifique pour les activités
-    } catch (error) {
-      const message = 'An error occurred while fetching activities';
-      console.error(error);
-      throw new HttpException(message, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
-
-  @Get('activities/:activityId')
-  async getActivityDetails(@Param('activityId') activityId: string) {
-    try {
-      // Implémentation spécifique pour les activités
-    } catch (error) {
-      const message = 'An error occurred while fetching activity details';
-      console.error(error);
-      throw new HttpException(message, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
-
-  @Post('activities/favorites')
-  async addActivityToFavorites(
-    @Body() body: { activityId: string; customerId: string },
-  ) {
-    try {
-      // Implémentation pour ajouter une activité aux favoris
-    } catch (error) {
-      const message = 'An error occurred while adding activity to favorites';
-      console.error(error);
-      throw new HttpException(message, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
-
-  @Delete('activities/favorites/:id')
-  async removeActivityFromFavorites(@Param('id') id: string) {
-    try {
-      // Implémentation pour supprimer une activité des favoris
-    } catch (error) {
-      const message =
-        'An error occurred while removing activity from favorites';
-      console.error(error);
-      throw new HttpException(message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 }
