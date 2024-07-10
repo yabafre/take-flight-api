@@ -5,24 +5,7 @@ import { Client } from '@googlemaps/google-maps-services-js';
 import OpenAI from 'openai';
 import CurrencyConverter from 'currency-converter-lt';
 import { MessageContent } from 'openai/resources/beta/threads';
-
-interface Criteria {
-  maxPrice: number;
-  flexibleMaxPrice: boolean;
-  originLocationCode: string;
-  numberOfPeople: number;
-  adults: number;
-  children: number;
-  destinationLocation: boolean;
-  destinationLocationCode?: string;
-  continent?: string;
-  startDate: string;
-  endDate: string;
-  travelType: string;
-  travelGenre: string;
-  activityPace: string;
-  keywords: string;
-}
+import { assistantCriteriaDto } from '@/search/dto/search-assistant-criteria.dto';
 
 @Injectable()
 export class AssistantService {
@@ -43,7 +26,7 @@ export class AssistantService {
     );
   }
 
-  async filterResults(criteria: Criteria) {
+  async filterResults(criteria: assistantCriteriaDto) {
     try {
       const { flightBudget, hotelBudget } =
         this.calculateBudgetPerService(criteria);
@@ -145,7 +128,7 @@ export class AssistantService {
     }
   }
 
-  async suggestDestinations(criteria: Criteria) {
+  async suggestDestinations(criteria: assistantCriteriaDto) {
     const prompt = `Suggest two destinations in ${criteria.continent} based on the following criteria: ${JSON.stringify(criteria)}`;
     const assistant = await this.openai.beta.assistants.create({
       name: 'destination-suggestion',
@@ -181,7 +164,7 @@ export class AssistantService {
     }
   }
 
-  async searchFlights(criteria: Criteria) {
+  async searchFlights(criteria: assistantCriteriaDto) {
     const responses = await this.amadeusService.searchFlights({
       originLocationCode: criteria.originLocationCode,
       destinationLocationCode: criteria.destinationLocationCode,
@@ -207,7 +190,7 @@ export class AssistantService {
     });
   }
 
-  async searchHotels(criteria: Criteria) {
+  async searchHotels(criteria: assistantCriteriaDto) {
     const response = await this.amadeusService.searchHotels({
       destination: criteria.destinationLocationCode,
       startDate: criteria.startDate,
@@ -215,14 +198,19 @@ export class AssistantService {
       numberOfPeople: criteria.numberOfPeople,
     });
 
-    console.log('response', response[0]);
+    // Filtrer les hôtels sans chambres disponibles
+    const availableHotels = response.filter(
+      (hotel) => hotel.offers && hotel.offers.length > 0,
+    );
 
-    return response;
+    console.log('Available hotels:', availableHotels.length);
+
+    return availableHotels;
   }
 
   async filterFlightsWithAI(flights: any[], criteria: any) {
-    const chunkSize = 40; // Taille de chaque chunk
-    let filteredFlights = [];
+    const chunkSize = 10; // Taille de chaque chunk pour éviter d'avoir une chaîne trop longue
+    const filteredFlights = [];
 
     for (let i = 0; i < flights.length; i += chunkSize) {
       const chunk = flights.slice(i, i + chunkSize);
@@ -258,10 +246,10 @@ export class AssistantService {
         const messageContent = response.data[0].content;
 
         try {
-          filteredFlights = JSON.parse(JSON.stringify(messageContent)).slice(
-            0,
-            3,
-          ); // Prendre seulement les trois meilleurs
+          const chunkFilteredFlights = JSON.parse(
+            JSON.stringify(messageContent),
+          ).slice(0, 3); // Prendre seulement les trois meilleurs
+          filteredFlights.push(...chunkFilteredFlights);
         } catch (error) {
           console.error('Error parsing JSON:', error);
           throw new Error('Failed to parse JSON response from AI assistant');
@@ -484,14 +472,14 @@ export class AssistantService {
       } else {
         return run.status;
       }
-      await this.delay(2000); // Ajoute un délai de 2 seconde entre chaque requête
+      await this.delay(2000); // Ajoute un délai de 2 secondes entre chaque requête
     }
 
     return filteredActivities;
   }
 
   async searchActivitiesWithKeywords(
-    criteria: Criteria,
+    criteria: assistantCriteriaDto,
     coordinates: { lat: number; lng: number },
   ) {
     const { keywords } = criteria;
@@ -528,12 +516,11 @@ export class AssistantService {
 
   async createItinerary(hotelLocation: string, activities: any, criteria: any) {
     try {
-      const itinerary = await this.planItineraryWithAI(
+      return await this.planItineraryWithAI(
         hotelLocation,
         activities,
         criteria,
       );
-      return itinerary;
     } catch (error) {
       console.error('Error creating itinerary:', error);
       throw new Error('Failed to create itinerary');
@@ -668,7 +655,7 @@ export class AssistantService {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  private calculateBudgetPerService(criteria: Criteria): {
+  private calculateBudgetPerService(criteria: assistantCriteriaDto): {
     flightBudget: number;
     hotelBudget: number;
   } {

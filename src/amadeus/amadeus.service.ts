@@ -119,12 +119,16 @@ export class AmadeusService {
   }
 
   async getFlightOffersPricing(flightOffers: any) {
-    return this.amadeusClient.shopping.flightOffers.pricing.post({
-      data: {
-        type: 'flight-offers-pricing',
-        flightOffers: flightOffers,
-      },
-    });
+    const response =
+      await this.amadeusClient.shopping.flightOffers.pricing.post(
+        JSON.stringify({
+          data: {
+            type: 'flight-offers-pricing',
+            flightOffers: [flightOffers], // Assurez-vous que flightOffers est un tableau
+          },
+        }),
+      );
+    return response;
   }
 
   // *** Function for all inclusive serach by AI ***

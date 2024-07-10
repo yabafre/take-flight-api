@@ -5,13 +5,20 @@ import {
   HttpStatus,
   Post,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { UsersService } from '@/users/users.service';
 
+@ApiTags('webhooks')
 @Controller('webhooks')
 export class WebhooksController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post('supabase')
+  @ApiOperation({ summary: 'Handle Supabase events' })
+  @ApiBody({ type: Object })
+  @ApiResponse({ status: 200, description: 'Event processed' })
+  @ApiResponse({ status: 400, description: 'Unsupported event type' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async handleSupabaseEvent(@Body() data: any) {
     const { type, record, old_record } = data;
     console.log('Received event:', type, record, old_record);
