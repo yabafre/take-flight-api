@@ -7,7 +7,7 @@ Une API qui s'intègre avec Supabase pour l'authentification, tout en utilisant 
 
 ### Utilisation de l'ID Token pour l'Authentification dans l'API
 
-L'API doit valider l'ID Token de Supabase envoyé par le client pour chaque requête nécessitant une authentification. Vous pourriez mettre en place un middleware d'authentification dans votre API qui effectue les opérations suivantes :
+L'API doit valider l'ID Token de Supabase envoyé par le client pour chaque requête nécessitant une authentification, avec un middleware d'authentification dans l'API qui effectue les opérations suivantes :
 
 - Extraire l'ID Token du header `Authorization` des requêtes entrantes.
 - Valider l'ID Token avec le service approprié de Supabase pour s'assurer qu'il est valide et récupérer les informations de l'utilisateur associé.
@@ -48,4 +48,4 @@ Voici les endpoints révisés sans les fonctionnalités de connexion et d'inscri
 - **DELETE /favorites/{id}** : Retirer un élément des favoris.
 - **GET /history/searches** : Lister l'historique des recherches de l'utilisateur.
 
-Ces modifications vous permettront d'utiliser efficacement Supabase pour la gestion de l'authentification et de synchroniser les données des utilisateurs entre Supabase et votre base de données locale via des webhooks, tout en sécurisant l'accès aux fonctionnalités de l'API à l'aide de l'ID Token.
+Utiliser efficacement Supabase pour la gestion de l'authentification et de synchroniser les données des utilisateurs entre Supabase et la base de données locale via des webhooks, tout en sécurisant l'accès aux fonctionnalités de l'API à l'aide de l'ID Token.
