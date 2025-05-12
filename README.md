@@ -1,4 +1,4 @@
-Pour structurer une API qui s'intègre avec Supabase pour l'authentification, tout en utilisant des webhooks et l'ID token de Supabase pour gérer les autorisations au niveau de l'API, nous allons revoir la configuration des endpoints en mettant l'accent sur le fait que l'authentification est gérée côté client, et non par l'API elle-même.
+Une API qui s'intègre avec Supabase pour l'authentification, tout en utilisant des webhooks et l'ID token de Supabase pour gérer les autorisations au niveau de l'API, nous allons revoir la configuration des endpoints en mettant l'accent sur le fait que l'authentification est gérée côté client, et non par l'API elle-même.
 
 ### Gestion des Utilisateurs via Webhook
 
